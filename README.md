@@ -1,6 +1,6 @@
 # PixelFlow
 
-PixelFlow is a lightweight macOS menu bar app that visualizes upload and download traffic with two independent pixel-art animations.
+PixelFlow is a lightweight macOS menu bar app that visualizes upload/download traffic and optional system metrics with pixel-art menu bar icons.
 
 ## Requirements
 
@@ -20,6 +20,12 @@ Running from SwiftPM is useful during development. For normal menu bar usage, bu
 open .build/PixelFlow.app
 ```
 
+For local UI debugging, rebuild and restart the menu bar app with one command:
+
+```sh
+./Scripts/restart-app.sh
+```
+
 ## MVP Features
 
 - Two menu bar icons: upload faces right, download faces left
@@ -27,6 +33,8 @@ open .build/PixelFlow.app
 - Animation speed and color react continuously to measured traffic
 - System network counters sampled through macOS routing interface stats
 - Low-pass smoothing to avoid jitter
+- Optional pixel-art indicators for memory usage, disk usage, CPU temperature, fan speed, CPU usage, and GPU usage
+- Per-item visibility toggles for upload/download and system metrics in the Display Items menu
 - Shared menu with live upload/download rates, launch-at-login toggle, about, and quit
 
 ## Notes

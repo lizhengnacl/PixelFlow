@@ -15,6 +15,7 @@ let package = Package(
             name: "PixelFlow",
             linkerSettings: [
                 .linkedFramework("AppKit"),
+                .linkedFramework("IOKit"),
                 .linkedFramework("ServiceManagement")
             ]
         )
