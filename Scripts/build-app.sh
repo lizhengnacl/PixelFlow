@@ -18,5 +18,6 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 cp "$ROOT_DIR/.build/release/PixelFlow" "$MACOS_DIR/PixelFlow"
 cp "$ROOT_DIR/Packaging/Info.plist" "$CONTENTS_DIR/Info.plist"
+cp "$ROOT_DIR/Packaging/PixelFlow.icns" "$RESOURCES_DIR/PixelFlow.icns"
 
 echo "Built $APP_DIR"
