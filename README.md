@@ -7,23 +7,59 @@ PixelFlow is a lightweight macOS menu bar app that visualizes upload/download tr
 - macOS 13 Ventura or newer
 - Xcode 16 command line tools or compatible Swift toolchain
 
-## Run From Source
+## Commands
+
+### Development
+
+Run the app directly from SwiftPM:
 
 ```sh
 swift run PixelFlow
 ```
 
-Running from SwiftPM is useful during development. For normal menu bar usage, build the `.app` bundle so `LSUIElement` and login-item registration are available:
+This is useful for quick development checks. Because this path does not launch the
+packaged `.app`, normal menu bar behavior that depends on `LSUIElement` or
+login-item registration should be verified with the app bundle.
+
+### Debugging
+
+Build and run the debug executable:
 
 ```sh
-./Scripts/build-app.sh
-open .build/PixelFlow.app
+swift build -c debug
+swift run PixelFlow
 ```
 
 For local UI debugging, rebuild and restart the menu bar app with one command:
 
 ```sh
 ./Scripts/restart-app.sh
+```
+
+### Build
+
+Build a release `.app` bundle:
+
+```sh
+./Scripts/build-app.sh
+```
+
+Open the built app:
+
+```sh
+open .build/PixelFlow.app
+```
+
+### Install
+
+Install the built app for the current user:
+
+```sh
+./Scripts/build-app.sh
+mkdir -p "$HOME/Applications"
+rm -rf "$HOME/Applications/PixelFlow.app"
+cp -R .build/PixelFlow.app "$HOME/Applications/PixelFlow.app"
+open "$HOME/Applications/PixelFlow.app"
 ```
 
 ## MVP Features
