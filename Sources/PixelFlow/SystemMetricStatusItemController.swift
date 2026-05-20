@@ -22,7 +22,11 @@ final class SystemMetricStatusItemController {
 
     func setReading(_ reading: SystemMetricReading) {
         self.reading = reading
-        statusItem.button?.toolTip = "\(kind.label): \(reading.valueText)"
+        if let diagnostic = reading.diagnostic {
+            statusItem.button?.toolTip = "\(kind.label): \(reading.valueText)\n\(diagnostic)"
+        } else {
+            statusItem.button?.toolTip = "\(kind.label): \(reading.valueText)"
+        }
         needsRender = true
     }
 
@@ -84,7 +88,8 @@ final class SystemMetricStatusItemController {
             kind: kind,
             valueText: "采集中",
             normalizedValue: 0,
-            isAvailable: false
+            isAvailable: false,
+            diagnostic: "尚未采集"
         )
 
         statusItem.button?.image = renderer.image(

@@ -213,6 +213,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let diagnosticsMenu = diagnosticsItem.submenu ?? NSMenu(title: "采集诊断")
         diagnosticsMenu.removeAllItems()
 
+        let networkItem = NSMenuItem(title: "网络", action: nil, keyEquivalent: "")
+        networkItem.isEnabled = false
+        diagnosticsMenu.addItem(networkItem)
+
         if currentRates.interfaceRates.isEmpty {
             let item = NSMenuItem(title: "无接口增量", action: nil, keyEquivalent: "")
             item.isEnabled = false
@@ -227,6 +231,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 item.isEnabled = false
                 diagnosticsMenu.addItem(item)
             }
+        }
+
+        diagnosticsMenu.addItem(.separator())
+
+        let systemItem = NSMenuItem(title: "系统指标", action: nil, keyEquivalent: "")
+        systemItem.isEnabled = false
+        diagnosticsMenu.addItem(systemItem)
+
+        for kind in SystemMetricKind.menuOrder {
+            let reading = currentSystemSnapshot.reading(for: kind)
+            let detail = reading.diagnostic ?? (reading.isAvailable ? "已采集" : "不可用")
+            let item = NSMenuItem(title: "\(kind.shortLabel): \(detail)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            diagnosticsMenu.addItem(item)
         }
 
         diagnosticsItem.submenu = diagnosticsMenu

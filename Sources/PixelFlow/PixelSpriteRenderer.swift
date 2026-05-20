@@ -111,7 +111,7 @@ final class PixelSpriteRenderer {
             mirrorHorizontally: direction == .download
         )
 
-        drawSprite(draw: draw, motion: motion, frame: frame, tint: tint)
+        drawSprite(draw: draw, direction: direction, motion: motion, frame: frame, tint: tint)
 
         let image = NSImage(size: NSSize(width: logicalSize, height: logicalSize))
         rep.size = image.size
@@ -172,6 +172,7 @@ final class PixelSpriteRenderer {
 
     private func drawSprite(
         draw: PixelDrawContext,
+        direction: TrafficDirection,
         motion: SpriteMotion,
         frame: Int,
         tint: NSColor
@@ -181,6 +182,7 @@ final class PixelSpriteRenderer {
         let outline = NSColor(calibratedWhite: 0.92, alpha: 0.95)
         let shadow = NSColor(calibratedWhite: 0, alpha: 0.25)
         let eye = NSColor(calibratedWhite: 1, alpha: 1)
+        let semanticTint = semanticTint(for: direction)
 
         let bob = bobOffset(motion: motion, frame: frame)
         let legA = legOffset(motion: motion, frame: frame, phase: 0)
@@ -196,6 +198,15 @@ final class PixelSpriteRenderer {
             draw.rect(x: max(1, 6 - scarf), y: 8 + bob, width: max(2, scarf - 1), height: 1, color: tint.withAlphaComponent(0.55))
         }
 
+        drawTrafficCues(
+            draw: draw,
+            direction: direction,
+            motion: motion,
+            frame: frame,
+            tint: tint,
+            semanticTint: semanticTint
+        )
+
         draw.rect(x: 8 + legA, y: 15 + bob, width: 3, height: 4, color: outline)
         draw.rect(x: 9 + legA, y: 15 + bob, width: 2, height: 4, color: body)
         draw.rect(x: 7 + legA, y: 18 + bob, width: 4, height: 1, color: body)
@@ -204,10 +215,18 @@ final class PixelSpriteRenderer {
         draw.rect(x: 12 + legB, y: 15 + bob, width: 2, height: 4, color: body)
         draw.rect(x: 12 + legB, y: 18 + bob, width: 4, height: 1, color: body)
 
-        draw.rect(x: 6 + armA, y: 10 + bob, width: 3, height: 5, color: outline)
-        draw.rect(x: 7 + armA, y: 10 + bob, width: 2, height: 5, color: body)
-        draw.rect(x: 14 + armB, y: 10 + bob, width: 3, height: 5, color: outline)
-        draw.rect(x: 14 + armB, y: 10 + bob, width: 2, height: 5, color: body)
+        drawArms(
+            draw: draw,
+            direction: direction,
+            bob: bob,
+            armA: armA,
+            armB: armB,
+            outline: outline,
+            body: body,
+            bodyMid: bodyMid,
+            tint: tint,
+            semanticTint: semanticTint
+        )
 
         draw.rect(x: 7, y: 8 + bob, width: 9, height: 8, color: outline)
         draw.rect(x: 8, y: 9 + bob, width: 7, height: 6, color: body)
@@ -218,6 +237,103 @@ final class PixelSpriteRenderer {
         draw.rect(x: 9, y: 5 + bob, width: 5, height: 2, color: body)
         draw.rect(x: 13, y: 5 + bob, width: 1, height: 1, color: eye)
         draw.rect(x: 9, y: 3 + bob, width: 4, height: 1, color: tint)
+
+        drawHeldObject(
+            draw: draw,
+            direction: direction,
+            bob: bob,
+            outline: outline,
+            bodyMid: bodyMid,
+            tint: tint,
+            semanticTint: semanticTint
+        )
+    }
+
+    private func semanticTint(for direction: TrafficDirection) -> NSColor {
+        switch direction {
+        case .upload:
+            return NSColor(calibratedRed: 0.16, green: 0.64, blue: 1, alpha: 1)
+        case .download:
+            return NSColor(calibratedRed: 0.36, green: 0.86, blue: 0.50, alpha: 1)
+        }
+    }
+
+    private func drawTrafficCues(
+        draw: PixelDrawContext,
+        direction: TrafficDirection,
+        motion: SpriteMotion,
+        frame: Int,
+        tint: NSColor,
+        semanticTint: NSColor
+    ) {
+        let phase = motion == .idle ? frame % 2 : frame % motion.frameCount
+
+        switch direction {
+        case .upload:
+            let lift = phase % 3
+            draw.rect(x: 18, y: max(0, 2 - lift), width: 1, height: 6, color: semanticTint.withAlphaComponent(0.92))
+            draw.rect(x: 17, y: max(0, 2 - lift), width: 3, height: 1, color: semanticTint.withAlphaComponent(0.92))
+            draw.rect(x: 16, y: 7 - lift, width: 2, height: 2, color: tint.withAlphaComponent(0.80))
+            draw.rect(x: 19, y: 10 - min(2, lift), width: 1, height: 1, color: semanticTint.withAlphaComponent(0.70))
+        case .download:
+            let fall = phase % 4
+            draw.rect(x: 18, y: 1 + fall, width: 1, height: 6, color: semanticTint.withAlphaComponent(0.92))
+            draw.rect(x: 17, y: 6 + fall, width: 3, height: 1, color: semanticTint.withAlphaComponent(0.92))
+            draw.rect(x: 18, y: 7 + fall, width: 1, height: 1, color: semanticTint.withAlphaComponent(0.92))
+            draw.rect(x: 15, y: 3 + ((fall + 2) % 4), width: 2, height: 2, color: tint.withAlphaComponent(0.78))
+        }
+    }
+
+    private func drawArms(
+        draw: PixelDrawContext,
+        direction: TrafficDirection,
+        bob: Int,
+        armA: Int,
+        armB: Int,
+        outline: NSColor,
+        body: NSColor,
+        bodyMid: NSColor,
+        tint: NSColor,
+        semanticTint: NSColor
+    ) {
+        switch direction {
+        case .upload:
+            draw.rect(x: 6 + armA, y: 11 + bob, width: 3, height: 4, color: outline)
+            draw.rect(x: 7 + armA, y: 11 + bob, width: 2, height: 4, color: body)
+            draw.rect(x: 14 + max(0, armB), y: 7 + bob, width: 3, height: 7, color: outline)
+            draw.rect(x: 15 + max(0, armB), y: 8 + bob, width: 2, height: 6, color: body)
+            draw.rect(x: 15 + max(0, armB), y: 6 + bob, width: 4, height: 2, color: outline)
+            draw.rect(x: 16 + max(0, armB), y: 6 + bob, width: 2, height: 1, color: semanticTint)
+        case .download:
+            draw.rect(x: 5 + min(0, armA), y: 12 + bob, width: 5, height: 3, color: outline)
+            draw.rect(x: 6 + min(0, armA), y: 12 + bob, width: 4, height: 2, color: body)
+            draw.rect(x: 13 + max(0, armB), y: 12 + bob, width: 5, height: 3, color: outline)
+            draw.rect(x: 13 + max(0, armB), y: 12 + bob, width: 4, height: 2, color: body)
+            draw.rect(x: 7, y: 13 + bob, width: 8, height: 2, color: bodyMid)
+            draw.rect(x: 8, y: 13 + bob, width: 6, height: 1, color: tint.withAlphaComponent(0.72))
+        }
+    }
+
+    private func drawHeldObject(
+        draw: PixelDrawContext,
+        direction: TrafficDirection,
+        bob: Int,
+        outline: NSColor,
+        bodyMid: NSColor,
+        tint: NSColor,
+        semanticTint: NSColor
+    ) {
+        switch direction {
+        case .upload:
+            draw.rect(x: 16, y: 5 + bob, width: 3, height: 3, color: outline)
+            draw.rect(x: 17, y: 5 + bob, width: 1, height: 2, color: tint)
+            draw.rect(x: 18, y: 6 + bob, width: 1, height: 1, color: semanticTint)
+        case .download:
+            draw.rect(x: 5, y: 14 + bob, width: 12, height: 4, color: outline)
+            draw.rect(x: 6, y: 15 + bob, width: 10, height: 2, color: bodyMid)
+            draw.rect(x: 7, y: 14 + bob, width: 8, height: 1, color: semanticTint)
+            draw.rect(x: 9, y: 15 + bob, width: 4, height: 1, color: tint.withAlphaComponent(0.75))
+        }
     }
 
     private func bobOffset(motion: SpriteMotion, frame: Int) -> Int {

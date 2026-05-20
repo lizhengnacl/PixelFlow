@@ -8,10 +8,12 @@ final class SystemStatsMonitor {
     private let interval: TimeInterval
     private var timer: Timer?
     private var previousCPUTicks: CPUTicks?
-    private let smcClient = SMCClient()
+    private let smcOpenResult: SMCOpenResult
+    private let thermalSensorSampler = ThermalSensorSampler()
 
     init(interval: TimeInterval = 1.0) {
         self.interval = interval
+        smcOpenResult = SMCClient.open()
     }
 
     func start() {
@@ -56,7 +58,7 @@ final class SystemStatsMonitor {
 
     private func memoryUsageReading() -> SystemMetricReading {
         guard let usage = Self.readMemoryUsage() else {
-            return unavailable(.memoryUsage)
+            return unavailable(.memoryUsage, diagnostic: "Mach VM 统计读取失败")
         }
 
         return SystemMetricReading(
@@ -66,13 +68,14 @@ final class SystemStatsMonitor {
                 totalBytes: usage.totalBytes
             ),
             normalizedValue: usage.fraction,
-            isAvailable: true
+            isAvailable: true,
+            diagnostic: "Mach VM 统计"
         )
     }
 
     private func diskUsageReading() -> SystemMetricReading {
         guard let usage = Self.readDiskUsage() else {
-            return unavailable(.diskUsage)
+            return unavailable(.diskUsage, diagnostic: "文件系统容量读取失败")
         }
 
         return SystemMetricReading(
@@ -82,70 +85,116 @@ final class SystemStatsMonitor {
                 totalBytes: usage.totalBytes
             ),
             normalizedValue: usage.fraction,
-            isAvailable: true
+            isAvailable: true,
+            diagnostic: "文件系统容量"
         )
     }
 
     private func cpuTemperatureReading() -> SystemMetricReading {
-        guard let temperature = smcClient?.cpuTemperatureCelsius() else {
-            return unavailable(.cpuTemperature)
+        if let sample = smcClient?.cpuTemperatureSample() {
+            return SystemMetricReading(
+                kind: .cpuTemperature,
+                valueText: SystemMetricFormatter.temperature(sample.celsius),
+                normalizedValue: Self.normalize(sample.celsius, low: 35, high: 95),
+                isAvailable: true,
+                diagnostic: "AppleSMC \(sample.key)"
+            )
         }
 
-        return SystemMetricReading(
-            kind: .cpuTemperature,
-            valueText: SystemMetricFormatter.temperature(temperature),
-            normalizedValue: Self.normalize(temperature, low: 35, high: 95),
-            isAvailable: true
+        if let sample = thermalSensorSampler.cpuTemperatureSample() {
+            return SystemMetricReading(
+                kind: .cpuTemperature,
+                valueText: SystemMetricFormatter.temperature(sample.celsius),
+                normalizedValue: Self.normalize(sample.celsius, low: 35, high: 95),
+                isAvailable: true,
+                diagnostic: sample.diagnostic
+            )
+        }
+
+        return unavailable(
+            .cpuTemperature,
+            diagnostic: "\(smcTemperatureDiagnostic())；\(thermalSensorSampler.diagnostic())"
         )
     }
 
     private func fanSpeedReading() -> SystemMetricReading {
-        guard let speed = smcClient?.primaryFanSpeedRPM() else {
-            return unavailable(.fanSpeed)
+        guard let sample = smcClient?.primaryFanSpeedSample() else {
+            return unavailable(.fanSpeed, diagnostic: smcFanDiagnostic())
         }
 
+        let speed = sample.speed
         let maxRPM = speed.maxRPM ?? 6000
         return SystemMetricReading(
             kind: .fanSpeed,
             valueText: SystemMetricFormatter.fanSpeed(speed.currentRPM),
             normalizedValue: maxRPM > 0 ? max(0, min(1, speed.currentRPM / maxRPM)) : 0,
-            isAvailable: true
+            isAvailable: true,
+            diagnostic: "AppleSMC \(sample.key)"
         )
     }
 
     private func cpuUsageReading() -> SystemMetricReading {
         guard let usage = readCPUUsage() else {
-            return unavailable(.cpuUsage)
+            return unavailable(.cpuUsage, diagnostic: "等待下一次 CPU 采样")
         }
 
         return SystemMetricReading(
             kind: .cpuUsage,
             valueText: SystemMetricFormatter.percent(usage),
             normalizedValue: usage,
-            isAvailable: true
+            isAvailable: true,
+            diagnostic: "Mach CPU 计数"
         )
     }
 
     private func gpuUsageReading() -> SystemMetricReading {
         guard let usage = Self.readGPUUsage() else {
-            return unavailable(.gpuUsage)
+            return unavailable(.gpuUsage, diagnostic: "IORegistry 未发现 GPU 利用率")
         }
 
         return SystemMetricReading(
             kind: .gpuUsage,
             valueText: SystemMetricFormatter.percent(usage),
             normalizedValue: usage,
-            isAvailable: true
+            isAvailable: true,
+            diagnostic: "IORegistry PerformanceStatistics"
         )
     }
 
-    private func unavailable(_ kind: SystemMetricKind) -> SystemMetricReading {
+    private func unavailable(_ kind: SystemMetricKind, diagnostic: String) -> SystemMetricReading {
         SystemMetricReading(
             kind: kind,
             valueText: "不可用",
             normalizedValue: 0,
-            isAvailable: false
+            isAvailable: false,
+            diagnostic: diagnostic
         )
+    }
+
+    private var smcClient: SMCClient? {
+        guard case let .opened(client) = smcOpenResult else {
+            return nil
+        }
+
+        return client
+    }
+
+    private func smcTemperatureDiagnostic() -> String {
+        switch smcOpenResult {
+        case let .opened(client):
+            return client.temperatureDiagnostic()
+        case let .unavailable(reason):
+            return reason
+        }
+    }
+
+    private func smcFanDiagnostic() -> String {
+        switch smcOpenResult {
+        case let .opened(client):
+            return client.fanDiagnostic()
+        case let .unavailable(reason):
+            return reason
+        }
     }
 
     private struct CapacityUsage {

@@ -71,6 +71,8 @@ open "$HOME/Applications/PixelFlow.app"
 - Low-pass smoothing to avoid jitter
 - Optional pixel-art indicators for memory usage, disk usage, CPU temperature, fan speed, CPU usage, and GPU usage
 - Per-item visibility toggles for upload/download and system metrics in the Display Items menu
+- CPU temperature reads AppleSMC first and falls back to Apple Silicon HID temperature sensors when available
+- The diagnostics menu shows the collection source or failure reason for each network/system metric
 - Shared menu with live upload/download rates, launch-at-login toggle, about, and quit
 
 ## Notes

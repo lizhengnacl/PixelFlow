@@ -7,6 +7,21 @@ struct FanSpeed {
     let maxRPM: Double?
 }
 
+struct SMCTemperatureSample {
+    let celsius: Double
+    let key: String
+}
+
+struct SMCFanSpeedSample {
+    let speed: FanSpeed
+    let key: String
+}
+
+enum SMCOpenResult {
+    case opened(SMCClient)
+    case unavailable(String)
+}
+
 final class SMCClient {
     private typealias SMCBytes = (
         UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
@@ -59,12 +74,17 @@ final class SMCClient {
         case readKeyInfo = 9
     }
 
+    private static let temperatureKeys = [
+        "TC0P", "TC0E", "TC0F", "TC0D", "TC0H", "TC0C",
+        "TC1C", "TC2C", "Tp09", "Tp0T", "Tp0P"
+    ]
+
     private let connection: io_connect_t
 
-    init?() {
+    static func open() -> SMCOpenResult {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
         guard service != 0 else {
-            return nil
+            return .unavailable("未发现 AppleSMC 服务")
         }
 
         var connection: io_connect_t = 0
@@ -72,9 +92,13 @@ final class SMCClient {
         IOObjectRelease(service)
 
         guard result == KERN_SUCCESS else {
-            return nil
+            return .unavailable("AppleSMC 打开失败 \(kernelResultDescription(result))")
         }
 
+        return .opened(SMCClient(connection: connection))
+    }
+
+    private init(connection: io_connect_t) {
         self.connection = connection
     }
 
@@ -83,33 +107,39 @@ final class SMCClient {
     }
 
     func cpuTemperatureCelsius() -> Double? {
-        let temperatureKeys = [
-            "TC0P", "TC0E", "TC0F", "TC0D", "TC0H", "TC0C",
-            "TC1C", "TC2C", "Tp09", "Tp0T", "Tp0P"
-        ]
+        cpuTemperatureSample()?.celsius
+    }
 
-        for key in temperatureKeys {
+    func cpuTemperatureSample() -> SMCTemperatureSample? {
+        for key in Self.temperatureKeys {
             guard let value = readDouble(key), value > 0, value < 130 else {
                 continue
             }
 
-            return value
+            return SMCTemperatureSample(celsius: value, key: key)
         }
 
         return nil
     }
 
     func primaryFanSpeedRPM() -> FanSpeed? {
+        primaryFanSpeedSample()?.speed
+    }
+
+    func primaryFanSpeedSample() -> SMCFanSpeedSample? {
         if let fanCount = readDouble("FNum"), fanCount > 0 {
             for index in 0..<Int(fanCount) {
                 guard let currentRPM = readDouble("F\(index)Ac") else {
                     continue
                 }
 
-                return FanSpeed(
-                    currentRPM: currentRPM,
-                    minRPM: readDouble("F\(index)Mn"),
-                    maxRPM: readDouble("F\(index)Mx")
+                return SMCFanSpeedSample(
+                    speed: FanSpeed(
+                        currentRPM: currentRPM,
+                        minRPM: readDouble("F\(index)Mn"),
+                        maxRPM: readDouble("F\(index)Mx")
+                    ),
+                    key: "F\(index)Ac"
                 )
             }
         }
@@ -118,11 +148,30 @@ final class SMCClient {
             return nil
         }
 
-        return FanSpeed(
-            currentRPM: currentRPM,
-            minRPM: readDouble("F0Mn"),
-            maxRPM: readDouble("F0Mx")
+        return SMCFanSpeedSample(
+            speed: FanSpeed(
+                currentRPM: currentRPM,
+                minRPM: readDouble("F0Mn"),
+                maxRPM: readDouble("F0Mx")
+            ),
+            key: "F0Ac"
         )
+    }
+
+    func temperatureDiagnostic() -> String {
+        "AppleSMC 温度键不可读"
+    }
+
+    func fanDiagnostic() -> String {
+        guard let fanCount = readDouble("FNum") else {
+            return "AppleSMC FNum 不可读"
+        }
+
+        guard fanCount > 0 else {
+            return "AppleSMC 报告未发现风扇"
+        }
+
+        return "AppleSMC 报告 \(Int(fanCount)) 个风扇，但转速键不可读"
     }
 
     private func readDouble(_ key: String) -> Double? {
@@ -264,5 +313,9 @@ final class SMCClient {
         ]
 
         return String(bytes: bytes, encoding: .ascii) ?? ""
+    }
+
+    private static func kernelResultDescription(_ result: kern_return_t) -> String {
+        "0x\(String(UInt32(bitPattern: result), radix: 16))"
     }
 }

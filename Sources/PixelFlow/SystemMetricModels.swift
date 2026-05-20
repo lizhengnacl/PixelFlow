@@ -57,6 +57,7 @@ struct SystemMetricReading {
     let valueText: String
     let normalizedValue: Double
     let isAvailable: Bool
+    let diagnostic: String?
 }
 
 struct SystemMetricsSnapshot {
@@ -70,7 +71,8 @@ struct SystemMetricsSnapshot {
             kind: kind,
             valueText: "不可用",
             normalizedValue: 0,
-            isAvailable: false
+            isAvailable: false,
+            diagnostic: "尚未采集"
         )
     }
 }
